@@ -1,46 +1,55 @@
 import { WebSocketServer } from "ws";
 
-const wss = new WebSocketServer({ port: 8080});
+const wss = new WebSocketServer({ port: 8080 });
 
-// We create 2 socket objects, so both the sender n reciever will have their own websocket instance
+// We create 2 socket objects, so both the sender and receiver will have their own WebSocket instance
 
 let senderSocket: any = null;
 let receiverSocket: any = null;
 
 wss.on('connection', function connection(ws) {
-    ws.on('error',console.error);
+    ws.on('error', console.error);
 
     ws.on('message', function message(data: any) {
         const message = JSON.parse(data);
-        console.log("This is a message from websocket",message);
-        // Based on the message type, we will now create different ws instance
-        if(message.type === 'sender'){
-            console.log("Sender set")
-            senderSocket = ws;}
+        console.log("This is a message from websocket", message);
 
-        else if(message.type === 'receiver'){
-                console.log("receiver set")
-                receiverSocket = ws;}
-        
-        else if(message.type === 'createOffer') {
-            if (ws !== senderSocket) return;
+        switch (message.type) {
+            case 'sender':
+                console.log("Sender set");
+                senderSocket = ws;
+                break;
 
-            console.log("offer received");
-            receiverSocket?.send(JSON.stringify({ type: 'createOffer' , sdp: message.sdp}))
-        }
-        else if(message.type === 'createAnswer') {
-            if(ws !== receiverSocket) return;
+            case 'receiver':
+                console.log("Receiver set");
+                receiverSocket = ws;
+                break;
 
-            console.log("answer received");
-            senderSocket?.send(JSON.stringify({ type: 'createAnswer' , sdp: message.sdp}))
+            case 'createOffer':
+                if (ws !== senderSocket) return;
+
+                console.log("Offer received");
+                receiverSocket?.send(JSON.stringify({ type: 'createOffer', sdp: message.sdp }));
+                break;
+
+            case 'createAnswer':
+                if (ws !== receiverSocket) return;
+
+                console.log("Answer received");
+                senderSocket?.send(JSON.stringify({ type: 'createAnswer', sdp: message.sdp }));
+                break;
+
+            case 'iceCandidate':
+                if (ws === senderSocket) {
+                    receiverSocket?.send(JSON.stringify({ type: 'iceCandidate', candidate: message.candidate }));
+                } else if (ws === receiverSocket) {
+                    senderSocket?.send(JSON.stringify({ type: 'iceCandidate', candidate: message.candidate }));
+                }
+                break;
+
+            default:
+                console.log("Unknown message type:", message.type);
+                break;
         }
-        else if(message.type === 'iceCandidate') {
-            if(ws === senderSocket) {
-                receiverSocket?.send(JSON.stringify({ type: 'iceCandidate' , candidate: message.candidate}))
-            }
-            else if(ws === receiverSocket) {
-                senderSocket?.send(JSON.stringify({ type: 'iceCandidate' , candidate: message.candidate}))
-            }
-        }
-    })
-})
+    });
+});
